@@ -5,7 +5,7 @@
 -- │ │   │ └─╴ │┌───┘ │   │ │ --
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
----@module  "Animation Blend Library" <GSAnimBlend>
+---@module  "Animation Blending Library" <GSAnimBlend>
 ---@version v1.9.1
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
