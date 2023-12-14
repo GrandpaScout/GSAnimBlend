@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v1.9.2
+---@version v1.9.3
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "1.9.2"
+local VER = "1.9.3"
 local FIG = {"0.1.0-rc.14", "0.1.2"}
 
 ---@type boolean, Lib.GS.AnimBlend
@@ -116,6 +116,14 @@ local s, this = pcall(function()
 
   this.animData = animData
   this.blending = blending
+
+  local ticker = 0
+  local last_delta = 0
+  local allowed_contexts = {
+    RENDER = true,
+    FIRST_PERSON = true,
+    OTHER = true
+  }
 
 
   -----=================================== UTILITY FUNCTIONS ====================================-----
@@ -404,9 +412,14 @@ local s, this = pcall(function()
     return function(state, data)
       if state.done then
         (state.starting and animPlay or animStop)(state.anim)
-        for _, v in pairs(partList) do
-          for _, p in ipairs(v) do p:offsetRot() end
-        end
+        local id = "GSAnimBlend:BlendVanillaCleanup_" .. math.random(0, 0xFFFF)
+        events.POST_RENDER:register(function(_, ctx)
+          if not allowed_contexts[ctx] then return end
+          for _, v in pairs(partList) do
+            for _, p in ipairs(v) do p:offsetRot() end
+          end
+          events.POST_RENDER:remove(id)
+        end, id)
         animBlend(state.anim, data.blend)
       else
         local pct = state.starting and 1 - state.progress or state.progress
@@ -1644,14 +1657,6 @@ local s, this = pcall(function()
 
 
   -----===================================== BLENDING LOGIC =====================================-----
-
-  local ticker = 0
-  local last_delta = 0
-  local allowed_contexts = {
-    RENDER = true,
-    FIRST_PERSON = true,
-    OTHER = true
-  }
 
   events.TICK:register(function()
     ticker = ticker + 1
