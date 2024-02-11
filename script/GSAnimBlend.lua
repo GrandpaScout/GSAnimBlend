@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v1.9.3
+---@version v1.9.4
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,8 +19,8 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "1.9.3"
-local FIG = {"0.1.0-rc.14", "0.1.2"}
+local VER = "1.9.4"
+local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 
 ---@type boolean, Lib.GS.AnimBlend
 local s, this = pcall(function()
@@ -1991,7 +1991,8 @@ else -- This is *all* error handling.
 
   e_stack = table.concat(stack_lines, "\n")
 
-  local cmp, ver = client.compareVersions, client.getFiguraVersion():match("^([^%+]*)")
+  local cmp = client.compareVersions
+  local ver = client.getFiguraVersion():match("^([^%+]*)"):gsub("^([pr])", "0.1.3-%1")
   local extra_reason = ""
 
   if FIG[1] and cmp(ver, FIG[1]) == -1 then
@@ -2010,8 +2011,7 @@ else -- This is *all* error handling.
        \n%s§r"
     ):format(
       ID,
-      ID, VER, ver,
-      extra_reason,
+      ID, VER, ver, extra_reason,
       e_msg, e_stack
     ),
     2
