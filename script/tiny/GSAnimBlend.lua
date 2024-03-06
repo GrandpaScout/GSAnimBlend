@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library (Tiny Edition)" <GSAnimBlend-Tiny>
----@version v1.9.6-tiny
+---@version v1.9.7-tiny
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- A *much* lighter version of the base GSAnimBlend library.
 --
@@ -17,7 +17,7 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend-Tiny"
-local VER = "1.9.6+tiny"
+local VER = "1.9.7+tiny"
 local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 
 --|================================================================================================================|--
@@ -106,9 +106,9 @@ local allowed_contexts = {
 -- Any lower and their computer is already having trouble, they don't need the blending.
 local tPass = 0.037504655
 
-local blendCommand = [[getmetatable(_ENV).GSLib_triggerBlendTiny(%q)]]
+local blendCommand = [[getmetatable(_ENV).GSLib_triggerBlend(%q)]]
 
-_ENVMT.GSLib_triggerBlendTiny = setmetatable({}, {
+_ENVMT.GSLib_triggerBlend = setmetatable({}, {
   __call = function(self, id) self[id]() end
 })
 
