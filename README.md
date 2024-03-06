@@ -28,5 +28,7 @@ For more information on the advanced features you can use, see the wiki **(WIP)*
 
 
 ## Installation
-To install this library, download this repository, open the `.zip` file it gives you, open the `script` folder, and put
-the `GSAnimBlend.lua` file in your avatar.
+To install this library:
+* Download this repository by pressing the big `<> Code` button and clicking *Download ZIP*.
+* Open the `.zip` file it gives you and open the `script` folder
+* Pick the version of this library you want to use, open it, and put the `GSAnimBlend.lua` file in your avatar.
