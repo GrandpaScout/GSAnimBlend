@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v1.9.4
+---@version v1.9.5
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "1.9.4"
+local VER = "1.9.5"
 local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 
 ---@type boolean, Lib.GS.AnimBlend
@@ -49,6 +49,9 @@ local s, this = pcall(function()
   local m_sqrt = math.sqrt
   local m_huge = math.huge
   local m_pi = math.pi
+  local m_1s2pi = m_pi * 0.5
+  local m_2s3pi = m_pi / 1.5
+  local m_4s9pi = m_pi / 2.25
   -- Localize Figura globals
   local animations = animations
   local figuraMetatables = figuraMetatables
@@ -228,7 +231,7 @@ local s, this = pcall(function()
     error(
       "No animations have been found!\n" ..
       "This library cannot build its functions without an animation to use.\n" ..
-      "Create an animation or don't `require` this library to fix the error."
+      "Create an animation or stop this library from running to fix the error."
     )
   end
 
@@ -254,9 +257,7 @@ local s, this = pcall(function()
   local animLength = ext_Animation.length
   local animGetPlayState = ext_Animation.getPlayState
   local animGetBlend = ext_Animation.getBlend
-  ---@diagnostic disable-next-line: deprecated
   local animIsPlaying = ext_Animation.isPlaying
-  ---@diagnostic disable-next-line: undefined-field
   local animIsPaused = ext_Animation.isPaused
   local animNewCode = ext_Animation.newCode
   local animapiGetPlaying = animations.getPlaying
@@ -313,14 +314,13 @@ local s, this = pcall(function()
     end
 
     local data = animData[anim]
+    local blendSane = data.blendSane
 
     if starting == nil then
-      local _from, _to = from or data.blendSane, to or data.blendSane
-      starting = _from < _to
+      starting = (from or blendSane) < (to or blendSane)
     end
 
-    ---@type Lib.GS.AnimBlend.BlendState
-    local blendState = {
+    data.state = {
       time = 0,
       max = time or false,
 
@@ -330,23 +330,19 @@ local s, this = pcall(function()
       callback = data.callback or this.defaultCallback,
 
       paused = false,
-      starting = starting
-    }
-
-    local blendSane = data.blendSane
-
-    blendState.callbackState = {
-      anim = anim,
-      time = 0,
-      max = time or (starting and data.blendTimeIn or data.blendTimeOut),
-      progress = 0,
-      from = from or blendSane,
-      to = to or blendSane,
       starting = starting,
-      done = false
-    }
 
-    data.state = blendState
+      callbackState = {
+        anim = anim,
+        time = 0,
+        max = time or (starting and data.blendTimeIn or data.blendTimeOut),
+        progress = 0,
+        from = from or blendSane,
+        to = to or blendSane,
+        starting = starting,
+        done = false
+      }
+    }
 
     blending[anim] = true
 
@@ -930,9 +926,7 @@ local s, this = pcall(function()
 
   -- I planned to add easeOutIn curves but I'm lazy. I'll do it if people request it.
 
-  ---A callback that uses the `easeInSine` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInSine)
+  ---A callback that uses the [`easeInSine`](https://easings.net/#easeInSine) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInSine(state, data)
@@ -944,14 +938,12 @@ local s, this = pcall(function()
       -- local prog = (1 - m_cos(state.progress * m_pi * 0.5)) --
       animBlend(
         state.anim,
-        from + (state.to - from) * (1 - m_cos(state.progress * m_pi * 0.5))
+        from + (state.to - from) * (1 - m_cos(state.progress * m_1s2pi))
       )
     end
   end
 
-  ---A callback that uses the `easeOutSine` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutSine)
+  ---A callback that uses the [`easeOutSine`](https://easings.net/#easeOutSine) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutSine(state, data)
@@ -963,14 +955,12 @@ local s, this = pcall(function()
       -- local prog = (m_sin(state.progress * m_pi * 0.5)) --
       animBlend(
         state.anim,
-        from + (state.to - from) * (m_sin(state.progress * m_pi * 0.5))
+        from + (state.to - from) * (m_sin(state.progress * m_1s2pi))
       )
     end
   end
 
-  ---A callback that uses the `easeInOutSine` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutSine)
+  ---A callback that uses the [`easeInOutSine`](https://easings.net/#easeInOutSine) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutSine(state, data)
@@ -982,14 +972,12 @@ local s, this = pcall(function()
       -- local prog = -(m_cos(state.progress * m_pi) - 1) * 0.5 --
       animBlend(
         state.anim,
-        from + (state.to - from) * (-(m_cos(state.progress * m_pi) - 1) * 0.5)
+        from + (state.to - from) * ((m_cos(state.progress * m_pi) - 1) * -0.5)
       )
     end
   end
 
-  ---A callback that uses the `easeInQuad` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInQuad)
+  ---A callback that uses the [`easeInQuad`](https://easings.net/#easeInQuad) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInQuad(state, data)
@@ -1006,9 +994,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutQuad` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutQuad)
+  ---A callback that uses the [`easeOutQuad`](https://easings.net/#easeOutQuad) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutQuad(state, data)
@@ -1025,9 +1011,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutQuad` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutQuad)
+  ---A callback that uses the [`easeInOutQuad`](https://easings.net/#easeInOutQuad) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutQuad(state, data)
@@ -1052,9 +1036,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInCubic` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInCubic)
+  ---A callback that uses the [`easeInCubic`](https://easings.net/#easeInCubic) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInCubic(state, data)
@@ -1071,9 +1053,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutCubic` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutCubic)
+  ---A callback that uses the [`easeOutCubic`](https://easings.net/#easeOutCubic) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutCubic(state, data)
@@ -1090,9 +1070,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutCubic` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutCubic)
+  ---A callback that uses the [`easeInOutCubic`](https://easings.net/#easeInOutCubic) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutCubic(state, data)
@@ -1117,9 +1095,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInQuart` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInQuart)
+  ---A callback that uses the [`easeInQuart`](https://easings.net/#easeInQuart) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInQuart(state, data)
@@ -1136,9 +1112,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutQuart` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutQuart)
+  ---A callback that uses the [`easeOutQuart`](https://easings.net/#easeOutQuart) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutQuart(state, data)
@@ -1155,9 +1129,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutQuart` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutQuart)
+  ---A callback that uses the [`easeInOutQuart`](https://easings.net/#easeInOutQuart) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutQuart(state, data)
@@ -1182,9 +1154,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInQuint` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInQuint)
+  ---A callback that uses the [`easeInQuint`](https://easings.net/#easeInQuint) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInQuint(state, data)
@@ -1201,9 +1171,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutQuint` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutQuint)
+  ---A callback that uses the [`easeOutQuint`](https://easings.net/#easeOutQuint) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutQuint(state, data)
@@ -1220,9 +1188,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutQuint` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutQuint)
+  ---A callback that uses the [`easeInOutQuint`](https://easings.net/#easeInOutQuint) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutQuint(state, data)
@@ -1247,9 +1213,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInExpo` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInExpo)
+  ---A callback that uses the [`easeInExpo`](https://easings.net/#easeInExpo) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInExpo(state, data)
@@ -1274,9 +1238,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutExpo` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutExpo)
+  ---A callback that uses the [`easeOutExpo`](https://easings.net/#easeOutExpo) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutExpo(state, data)
@@ -1301,9 +1263,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutExpo` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutExpo)
+  ---A callback that uses the [`easeInOutExpo`](https://easings.net/#easeInOutExpo) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutExpo(state, data)
@@ -1328,9 +1288,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInCirc` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInCirc)
+  ---A callback that uses the [`easeInCirc`](https://easings.net/#easeInCirc) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInCirc(state, data)
@@ -1347,9 +1305,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutCirc` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutCirc)
+  ---A callback that uses the [`easeOutCirc`](https://easings.net/#easeOutCirc) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutCirc(state, data)
@@ -1366,9 +1322,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutCirc` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutCirc)
+  ---A callback that uses the [`easeInOutCirc`](https://easings.net/#easeInOutCirc) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutCirc(state, data)
@@ -1393,9 +1347,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInBack` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInBack)
+  ---A callback that uses the [`easeInBack`](https://easings.net/#easeInBack) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInBack(state, data)
@@ -1415,9 +1367,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutBack` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutBack)
+  ---A callback that uses the [`easeOutBack`](https://easings.net/#easeOutBack) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutBack(state, data)
@@ -1426,20 +1376,18 @@ local s, this = pcall(function()
       animBlend(state.anim, data.blend)
     else
       local from = state.from
-      local x = state.progress - 1
+      local xm1 = state.progress - 1
       -- magic c1 <1.70158> = 1.70158                       --
       -- magic c2 <2.70158> = c1 + 1                        --
       -- local prog = 1 + 2.70158 * x ^ 3 + 1.70158 * x ^ 2 --
       animBlend(
         state.anim,
-        from + (state.to - from) * (1 + 2.70158 * x ^ 3 + 1.70158 * x ^ 2)
+        from + (state.to - from) * (1 + 2.70158 * xm1 ^ 3 + 1.70158 * xm1 ^ 2)
       )
     end
   end
 
-  ---A callback that uses the `easeInOutBack` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutBack)
+  ---A callback that uses the [`easeInOutBack`](https://easings.net/#easeInOutBack) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutBack(state, data)
@@ -1468,9 +1416,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInElastic` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInElastic)
+  ---A callback that uses the [`easeInElastic`](https://easings.net/#easeInElastic) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInElastic(state, data)
@@ -1487,15 +1433,13 @@ local s, this = pcall(function()
         state.anim, 
         from + (state.to - from) * (
           (x == 0 or x == 1) and x
-          or -(2 ^ (10 * x - 10)) * m_sin((x * 10 - 10.75) * m_pi / 1.5)
+          or -(2 ^ (10 * x - 10)) * m_sin((x * 10 - 10.75) * m_2s3pi)
         )
       )
     end
   end
 
-  ---A callback that uses the `easeOutElastic` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutElastic)
+  ---A callback that uses the [`easeOutElastic`](https://easings.net/#easeOutElastic) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutElastic(state, data)
@@ -1512,15 +1456,13 @@ local s, this = pcall(function()
         state.anim,
         from + (state.to - from) * (
           (x == 0 or x == 1) and x
-          or 2 ^ (-10 * x) * m_sin((x * 10 - 0.75) * m_pi / 1.5) + 1
+          or 2 ^ (-10 * x) * m_sin((x * 10 - 0.75) * m_2s3pi) + 1
         )
       )
     end
   end
 
-  ---A callback that uses the `easeInOutElastic` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutElastic)
+  ---A callback that uses the [`easeInOutElastic`](https://easings.net/#easeInOutElastic) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutElastic(state, data)
@@ -1538,16 +1480,14 @@ local s, this = pcall(function()
         state.anim,
         from + (state.to - from) * (
           (x == 0 or x == 1) and x
-          or x < 0.5 and -(2 ^ (x * 20 - 10) * m_sin((x * 20 - 11.125) * m_pi / 2.25)) * 0.5
-          or (2 ^ (-x * 20 + 10) * m_sin((x * 20 - 11.125) * m_pi / 2.25)) * 0.5 + 1
+          or x < 0.5 and -(2 ^ (x * 20 - 10) * m_sin((x * 20 - 11.125) * m_4s9pi)) * 0.5
+          or (2 ^ (x * -20 + 10) * m_sin((x * 20 - 11.125) * m_4s9pi)) * 0.5 + 1
         )
       )
     end
   end
 
-  ---A callback that uses the `easeInBounce` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInBounce)
+  ---A callback that uses the [`easeInBounce`](https://easings.net/#easeInBounce) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInBounce(state, data)
@@ -1580,9 +1520,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeOutBounce` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeOutBounce)
+  ---A callback that uses the [`easeOutBounce`](https://easings.net/#easeOutBounce) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeOutBounce(state, data)
@@ -1611,9 +1549,7 @@ local s, this = pcall(function()
     end
   end
 
-  ---A callback that uses the `easeInOutBounce` easing method to blend.
-  ---
-  ---[Learn More...](https://easings.net/#easeInOutBounce)
+  ---A callback that uses the [`easeInOutBounce`](https://easings.net/#easeInOutBounce) easing method to blend.
   ---@param state Lib.GS.AnimBlend.CallbackState
   ---@param data Lib.GS.AnimBlend.AnimData
   function callbackCurves.easeInOutBounce(state, data)
@@ -1651,7 +1587,7 @@ local s, this = pcall(function()
 
 
   ---The default callback used by this library. This is used when no other callback is being used.
-  this.defaultCallback = callbackCurves["lin" .. "ear"] --Yes, I did this to trick the LuaLS
+  this.defaultCallback = callbackCurves["lin" .. "ear"]
   this.callbackGen = callbackGenerators
   this.callbackCurve = callbackCurves
 
@@ -1738,21 +1674,22 @@ local s, this = pcall(function()
       local state = animData[self].state
       if state.paused then
         state.paused = false
-        return
+        return self
       elseif state.starting then
-        return
+        return self
       end
 
       animStop(self)
       local cbs = state.callbackState
       local time = cbs.max * cbs.progress
       this.blend(self, time, animGetBlend(self), nil, true)
-      return
+      return self
     elseif animData[self].blendTimeIn == 0 or animGetPlayState(self) ~= "STOPPED" then
       return animPlay(self)
     end
 
     this.blend(self, nil, 0, nil, true)
+    return self
   end
 
   function animationMethods:stop()
@@ -1760,17 +1697,18 @@ local s, this = pcall(function()
 
     if blending[self] then
       local state = animData[self].state
-      if not state.starting then return end
+      if not state.starting then return self end
 
       local cbs = state.callbackState
       local time = cbs.max * cbs.progress
       this.blend(self, time, animGetBlend(self), 0, false)
-      return
+      return self
     elseif animData[self].blendTimeOut == 0 or animGetPlayState(self) == "STOPPED" then
       return animStop(self)
     end
 
     this.blend(self, nil, nil, 0, false)
+    return self
   end
 
   function animationMethods:pause()
@@ -1778,10 +1716,10 @@ local s, this = pcall(function()
 
     if blending[self] then
       animData[self].state.paused = true
-      return
+      return self
     end
 
-    animPause(self)
+    return animPause(self)
   end
 
   function animationMethods:restart(blend)
@@ -1796,6 +1734,8 @@ local s, this = pcall(function()
     else
       animRestart(self)
     end
+
+    return self
   end
 
 
@@ -1809,7 +1749,7 @@ local s, this = pcall(function()
 
   function animationMethods:isBlending()
     if this.safe then assert(chk.badarg(1, "isBlending", self, "Animation")) end
-    return blending[self]
+    return not not blending[self]
   end
 
   function animationMethods:getBlend()
@@ -1828,12 +1768,12 @@ local s, this = pcall(function()
 
   function animationMethods:isPlaying()
     if this.safe then assert(chk.badarg(1, "isPlaying", self, "Animation")) end
-    return blending[self] or animIsPlaying(self)
+    return blending[self] and not animData[self].state.paused or animIsPlaying(self)
   end
 
   function animationMethods:isPaused()
     if this.safe then assert(chk.badarg(1, "isPaused", self, "Animation")) end
-    return not blending[self] and animIsPaused(self)
+    return (not blending[self] or animData[self].state.paused) and animIsPaused(self)
   end
 
 
@@ -1889,10 +1829,10 @@ local s, this = pcall(function()
     end
 
     local data = animData[self]
-    if data.length then animNewCode(self, data.length, "") end
+    if data.length then animNewCode(self, data.length - tPass, "") end
 
-    local lenSane = makeSane(m_max(len - tPass, 0), false)
-    data.length = lenSane and (lenSane > tPass and lenSane) or false
+    local lenSane = makeSane(len, -1)
+    data.length = lenSane > tPass and lenSane or false
 
     if data.length then
       animNewCode(self, m_max(data.length - tPass, 0), blendCommand:format(data.triggerId))
@@ -1902,8 +1842,7 @@ local s, this = pcall(function()
 
   function animationMethods:setPlaying(state)
     if this.safe then assert(chk.badarg(1, "setPlaying", self, "Animation")) end
-    if state then self:play() else self:stop() end
-    return self
+    return state and self:play() or self:stop()
   end
 
 
@@ -1931,7 +1870,6 @@ local s, this = pcall(function()
   function animation_mt:__newindex(key, value)
     if animationSetters[key] then
       animationSetters[key](self, value)
-      return
     else
       _animationNewIndex(self, key, value)
     end
@@ -1945,11 +1883,9 @@ local s, this = pcall(function()
 
     function apiMethods:getPlaying(ignore_blending)
       if this.safe then assert(chk.badarg(1, "getPlaying", self, "AnimationAPI")) end
-      ---@cast animapiGetPlaying function
       if ignore_blending then return animapiGetPlaying(animations) end
       local anims = {}
       for _, anim in ipairs(animations:getAnimations()) do
-        ---@diagnostic disable-next-line: deprecated
         if anim:isPlaying() then anims[#anims+1] = anim end
       end
 
@@ -2055,7 +1991,7 @@ end
 ---The ending blend weight.
 ---@field to number|false
 ---The callback to call each blending frame.
----@field callback? function
+---@field callback Lib.GS.AnimBlend.blendCallback
 ---The state proxy used in the blend callback function.
 ---@field callbackState Lib.GS.AnimBlend.CallbackState
 ---Determines if this blend is paused.
@@ -2279,6 +2215,9 @@ function Animation:onBlend(func) end
 
 ---@class AnimationAPI
 local AnimationAPI
+
+
+---===== GETTERS =====---
 
 ---#### [GS AnimBlend Library]
 ---Gets an array of every playing animation.
