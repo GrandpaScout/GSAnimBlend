@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library (Tiny Edition)" <GSAnimBlend-Tiny>
----@version v1.9.7-tiny
+---@version v1.9.8-tiny
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- A *much* lighter version of the base GSAnimBlend library.
 --
@@ -17,7 +17,7 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend-Tiny"
-local VER = "1.9.7+tiny"
+local VER = "1.9.8+tiny"
 local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 
 --|================================================================================================================|--
@@ -263,7 +263,7 @@ events.RENDER:register(function(delta, ctx)
         blending[anim] = nil
       else
         local from = state.from
-        animBlend(from + (state.to - from) * this.curve(state.time / state.max))
+        animBlend(anim, from + (state.to - from) * this.curve(state.time / state.max))
       end
     end
   end
