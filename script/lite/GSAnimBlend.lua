@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library (Lite Edition)" <GSAnimBlend-Lite>
----@version v1.9.5-lite
+---@version v1.9.6-lite
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- A much lighter version of the base GSAnimBlend library.
 --
@@ -17,7 +17,7 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend-Lite"
-local VER = "1.9.5+lite"
+local VER = "1.9.6+lite"
 local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 
 --|================================================================================================================|--
@@ -27,8 +27,6 @@ local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 -- Localize Lua basic
 local getmetatable = getmetatable
 local setmetatable = setmetatable
-local type = type
-local assert = assert
 local error = error
 local next = next
 local ipairs = ipairs
@@ -36,14 +34,10 @@ local pairs = pairs
 local rawset = rawset
 local tostring = tostring
 -- Localize Lua math
-local m_abs = math.abs
 local m_cos = math.cos
-local m_lerp = math.lerp
-local m_map = math.map
 local m_max = math.max
 local m_sin = math.sin
 local m_sqrt = math.sqrt
-local m_huge = math.huge
 local m_pi = math.pi
 local m_1s2pi = m_pi * 0.5
 local m_2s3pi = m_pi / 1.5
@@ -51,7 +45,6 @@ local m_4s9pi = m_pi / 2.25
 -- Localize Figura globals
 local animations = animations
 local figuraMetatables = figuraMetatables
-local vanilla_model = vanilla_model
 local events = events
 -- Localize current environment
 local _ENV = _ENV --[[@as _G]]
