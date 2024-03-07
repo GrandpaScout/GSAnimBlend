@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library (Tiny Edition)" <GSAnimBlend-Tiny>
----@version v1.9.8-tiny
+---@version v1.9.9-tiny
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- A *much* lighter version of the base GSAnimBlend library.
 --
@@ -17,7 +17,7 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend-Tiny"
-local VER = "1.9.8+tiny"
+local VER = "1.9.9+tiny"
 local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
 
 --|================================================================================================================|--
@@ -253,12 +253,12 @@ events.RENDER:register(function(delta, ctx)
   local elapsed_time = ticker + (delta - last_delta)
   ticker = 0
   for anim in pairs(blending) do
-    local data = animData[anim]
-    local state = data.state
+    local state = animData[anim].state
     if not state.paused then
       state.time = state.time + elapsed_time
 
       if state.time > state.max or (animGetPlayState(anim) == "STOPPED") then
+        (state.starting and animPlay or animStop)(anim)
         animBlend(anim, state.to)
         blending[anim] = nil
       else
