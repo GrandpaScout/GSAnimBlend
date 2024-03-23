@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v1.9.9
+---@version v1.9.10
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,8 +19,8 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "1.9.9"
-local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
+local VER = "1.9.10"
+local FIG = {"0.1.0-rc.14", "0.1.4"}
 
 ---@type boolean, Lib.GS.AnimBlend
 local s, this = pcall(function()

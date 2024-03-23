@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library (Lite Edition)" <GSAnimBlend-Lite>
----@version v1.9.9-lite
+---@version v1.9.10-lite
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- A much lighter version of the base GSAnimBlend library.
 --
@@ -17,8 +17,8 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend-Lite"
-local VER = "1.9.9+lite"
-local FIG = {"0.1.0-rc.14", "0.1.3-pre.4"}
+local VER = "1.9.10+lite"
+local FIG = {"0.1.0-rc.14", "0.1.4"}
 
 --|================================================================================================================|--
 --|=====|| SCRIPT ||===============================================================================================|--
@@ -438,16 +438,15 @@ function this.blend(anim, time, from, to, starting)
   local data = animData[anim]
   local dataBlend = data.blend
   local _from = from or dataBlend
-  local _to = to or dataBlend
 
-  if starting == nil then starting = _from < _to end
+  if starting == nil then starting = _from < (to or dataBlend) end
 
   data.state = {
     time = 0,
     max = time or (starting and data.blendTimeIn or data.blendTimeOut),
 
-    from = _from,
-    to = _to,
+    from = from or false,
+    to = to or false,
 
     callback = curves[data.curve] or curves[this.defaultCurve],
 
@@ -457,7 +456,7 @@ function this.blend(anim, time, from, to, starting)
 
   blending[anim] = true
 
-  animBlend(anim, from or dataBlend)
+  animBlend(anim, _from)
   animPlay(anim)
   if starting then anim:setTime(anim:getOffset()) end
   animPause(anim)
@@ -475,17 +474,18 @@ events.RENDER:register(function(delta, ctx)
   local elapsed_time = ticker + (delta - last_delta)
   ticker = 0
   for anim in pairs(blending) do
-    local state = animData[anim].state
+    local data = animData[anim]
+    local state = data.state
     if not state.paused then
       state.time = state.time + elapsed_time
 
       if state.time > state.max or (animGetPlayState(anim) == "STOPPED") then
         (state.starting and animPlay or animStop)(anim)
-        animBlend(anim, state.to)
+        animBlend(anim, state.to or data.blend)
         blending[anim] = nil
       else
-        local from = state.from
-        animBlend(anim, from + (state.to - from) * state.callback(state.time / state.max))
+        local from = state.from or data.blend
+        animBlend(anim, from + ((state.to or data.blend) - from) * state.callback(state.time / state.max))
       end
     end
   end
