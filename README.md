@@ -60,6 +60,8 @@ An example curve that blends in, out, then back in again.
 local function wave(x)
   return (math.cos(x * math.pi * 3) - 1) / -2
 end
+
+animations.MyModel.MyAnimation:setBlendCurve(wave)
 ```
 
 &nbsp;
@@ -67,7 +69,7 @@ end
 Blending callbacks allow you to change what happens while an animtion is blending.  
 The default blending callback simply applies the blend weights of the blend to the blending animation and nothing else.
 
-GSAnimBlend stores all of its premade blending curves in `GSBlend.callback`.
+GSAnimBlend stores all of its premade blending callbacks in `GSBlend.callback`.
 
 By default, all animations will use this blending callback:
 ```lua
@@ -154,13 +156,25 @@ local function flame(state, data)
 
   animBlend(state.anim, math.lerp(state.from, state.to, state.progress))
 end
+
+animations.MyModel.MyAnimation:onBlend(flame)
 ```
 
 &nbsp;
 ### Callback Generators
 Some of the functions in `GSBlend.callback` and `GSBlend.curve` start with `gen`. These are generators and are not meant
-to be used as blending callbacks themselves, instead *returning* functions that are meant to be used as callbacks.
+to be used as blending callbacks/curves themselves, instead *returning* functions that are meant to be used as callbacks.
 
 As an example, the generator `GSBlend.callback.genBlendVanilla` takes a list of parts that follow vanilla parts (such
 as parts named `Head` or `LeftArm`) and makes a blending callback that smoothly transitions between the vanilla
 rotations and the animation rotations instead of overwriting the vanilla rotations immediately.
+```lua
+-- This throws an error.
+animations.MyModel.MyAnimation:onBlend(GSBlend.callback.genBlendVanilla)
+
+-- This is how you are supposed to use the "genBlendVanilla" generator.
+animations.MyModel.MyAnimation:onBlend(GSBlend.callback.genBlendVanilla({
+  models.MyModel.Head, models.MyModel.Body,
+  models.MyModel.LeftArm, models.MyModel.RightArm
+}))
+```
