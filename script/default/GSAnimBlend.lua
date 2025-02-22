@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.0.1
+---@version v2.0.2
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,8 +19,21 @@
 -- descriptions of each function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.0.1"
+local VER = "2.0.2"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
+
+-- Safe version comparison --
+local CLIENT_VERSION = client.getFiguraVersion()
+    :match("^([^%+]*)")
+    :gsub("^([pr])", "0.1.3-%1")
+local COMPARABLE_VERSION = CLIENT_VERSION
+  :gsub("^(%d+).-%..-(%d+).-%..-(%d+).-(%-?)", "%1.%2.%3%4")
+
+local cmp = function(to)
+  local s, r = pcall(client.compareVersions, COMPARABLE_VERSION, to)
+  return s and r or nil
+end
+-----------------------------
 
 ---@type boolean, Lib.GS.AnimBlend
 local s, this = pcall(function()
@@ -58,7 +71,7 @@ local s, this = pcall(function()
   local events = events
   -- Localize current environment
   local _ENV = _ENV --[[@as _G]]
-  local FUTURE = client.compareVersions(client.getFiguraVersion(), "0.1.4") > 0
+  local FUTURE = cmp("0.1.4") == 1
 
   ---@diagnostic disable: duplicate-set-field, duplicate-doc-field
 
@@ -1603,18 +1616,25 @@ else -- This is *all* error handling.
     end
   end
 
-  local cmp = function(a, b)
-    local cmp_s, cmp_v = pcall(client.compareVersions, a, b)
-    return cmp_s and cmp_v or 0
-  end
-
-  local ver = client.getFiguraVersion():match("^([^%+]*)"):gsub("^([pr])", "0.1.3-%1")
   local extra_reason = ""
 
-  if FIG[1] and cmp(ver, FIG[1]) == -1 then
-    extra_reason = ("\n§7§oYour Figura version (%s) is below the recommended minimum of %s§r"):format(ver, FIG[1])
-  elseif FIG[2] and cmp(ver, FIG[2]) == 1 then
-    extra_reason = ("\n§7§oYour Figura version (%s) is above the recommended maximum of %s§r"):format(ver, FIG[2])
+  local check = 0
+  if FIG[1] then
+    local check = cmp(FIG[1])
+    if check == -1 then
+      extra_reason = ("\n§7§oYour Figura version (%s) is below the recommended minimum of %s§r"):format(CLIENT_VERSION, FIG[1])
+    elseif not check then
+      check = -1
+      extra_reason = ("\n§7§oYour Figura version (%s) is not valid!§r"):format(CLIENT_VERSION)
+    end
+  end
+  if check >= 0 and FIG[2] then
+    local check = cmp(FIG[2])
+    if check == -1 then
+      extra_reason = ("\n§7§oYour Figura version (%s) is above the recommended maximum of %s§r"):format(CLIENT_VERSION, FIG[2])
+    elseif not check then
+      extra_reason = ("\n§7§oYour Figura version (%s) is not valid!§r"):format(CLIENT_VERSION)
+    end
   end
 
   error(
@@ -1627,8 +1647,9 @@ else -- This is *all* error handling.
        \n%s§r"
     ):format(
       ID,
-      ID, VER, ver, extra_reason,
-      e_msg:gsub("\n", "\n§4  "), table.concat(stack_lines, "\n")
+      ID, VER, CLIENT_VERSION, extra_reason,
+      e_msg:gsub("\n", "\n  §4"),
+      table.concat(stack_lines, "\n")
     ),
     2
   )
