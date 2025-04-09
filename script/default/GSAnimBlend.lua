@@ -6,20 +6,20 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.0.2
+---@version v2.1.0
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
 --
--- Simply `require`ing this library is enough to make it run. However, if you place this library in
--- a variable, you can get access to functions and tools that allow for generating pre-build blend
--- callbacks or creating your own blend callbacks.
+-- Simply `require`ing this library is enough to make it run. However, if you place this library in a variable, you can
+-- get access to functions and tools that allow for generating built-in blending callbacks or creating your own blending
+-- callbacks.
 --
--- This library is fully documented. If you use Sumneko's Lua Language server, you will get
--- descriptions of each function, method, and field in this library.
+-- This library is fully documented. If you use Sumneko's Lua Language server, you will get descriptions of each
+-- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.0.2"
+local VER = "2.1.0"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -236,6 +236,7 @@ local s, this = pcall(function()
         blendSane = makeSane(blend, 0),
         length = lenSane,
         triggerId = i,
+        model = nbt.mdl,
         startFunc = start_func,
         startSource = start_src,
         endFunc = end_func,
@@ -285,11 +286,13 @@ local s, this = pcall(function()
 
 
   -- Check for conflicts
-  if ext_Animation.blendTime then
-    local path = tostring(ext_Animation.blendTime):match("^function: (.-):%d+%-%d+$")
+  if ext_Animation.setBlendTime or ext_Animation.blendTime then
+    local this_path = tostring(makeSane):match("^function: (.-):%d+%-%d+$")
+    local other_path = tostring(ext_Animation.setBlendTime or ext_Animation.blendTime):match("^function: (.-):%d+%-%d+$")
     error(
-      "Conflicting script [" .. path .. "] found!\n" ..
-      "Remove the other script or this script to fix the error."
+      ("Conflict found!\n[%s]\nconflicts with\n[%s]\nRemove one of the above scripts to fix this conflict.")
+        :format(this_path, other_path),
+      2
     )
   end
 
@@ -413,6 +416,40 @@ local s, this = pcall(function()
     animPause(anim)
 
     return blendState
+  end
+
+  ---A helper function that immediately stops a running blend on an animation.  
+  ---This function will do nothing if the animation is not blending.
+  ---
+  ---A blend stopped with this function will run its blending callback one final time to request cleanup and then
+  ---complete the blend.
+  ---
+  ---If `starting` is not `nil`, it will override the blending state's `starting` field when determining what happens
+  ---after the blend is stopped.
+  ---@param anim Animation
+  ---@param starting? boolean
+  function this.stopBlend(anim, starting)
+    if this.safe then
+      assert(chk.badarg(1, "stopBlend", anim, "Animation"))
+    end
+
+    if blending[anim] then
+      local data = animData[anim]
+      local state = data.state
+      local cbs = state.callbackState
+      cbs.progress = 1
+      cbs.time = cbs.max
+      cbs.done = true
+      state.callback(cbs, data)
+      blending[anim] = nil
+      animBlend(anim, data.blend)
+
+      if starting ~= nil then
+        (starting and animPlay or animStop)(anim)
+      else
+        (state.starting and animPlay or animStop)(anim)
+      end
+    end
   end
 
 
@@ -1283,11 +1320,11 @@ local s, this = pcall(function()
     local data = animData[self]
     if time == 0 then
       ---@diagnostic disable-next-line: redundant-parameter
-      data.startFunc = load(code, ("animations.%s.%s"):format(nbt.mdl, nbt.name))
+      data.startFunc = load(code, ("animations.%s.%s"):format(data.model, nbt.name))
       data.startSource = code
     elseif time == data.length then
       ---@diagnostic disable-next-line: redundant-parameter
-      data.endFunc = load(code, ("animations.%s.%s"):format(nbt.mdl, nbt.name))
+      data.endFunc = load(code, ("animations.%s.%s"):format(data.model, nbt.name))
       data.endSource = code
     else
       return animNewCode(self, time, code)
@@ -1300,18 +1337,14 @@ local s, this = pcall(function()
     if this.safe then assert(chk.badarg(1, "play", self, "Animation")) end
 
     if blending[self] then
+      if instant then
+        this.stopBlend(self, true)
+        return self
+      end
+
       local data = animData[self]
       local state = data.state
-      if instant then
-        local cbs = state.callbackState
-        cbs.progress = 1
-        cbs.time = cbs.max
-        cbs.done = true
-        state.callback(cbs, data)
-        blending[self] = nil
-        animBlend(self, data.blend)
-        return animPlay(self)
-      elseif state.paused then
+      if state.paused then
         state.paused = false
         return self
       elseif state.starting then
@@ -1334,18 +1367,14 @@ local s, this = pcall(function()
     if this.safe then assert(chk.badarg(1, "stop", self, "Animation")) end
 
     if blending[self] then
+      if instant then
+        this.stopBlend(self, false)
+        return self
+      end
+
       local data = animData[self]
       local state = data.state
-      if instant then
-        local cbs = state.callbackState
-        cbs.progress = 1
-        cbs.time = cbs.max
-        cbs.done = true
-        state.callback(cbs, data)
-        blending[self] = nil
-        animBlend(self, data.blend)
-        return animStop(self)
-      elseif not state.starting then
+      if not state.starting then
         return self
       end
 
@@ -1374,17 +1403,18 @@ local s, this = pcall(function()
   function animationMethods:restart(blend)
     if this.safe then assert(chk.badarg(1, "restart", self, "Animation")) end
 
-    if blend then
+    if blend and blending[self] then
+      local data = animData[self]
+      local state = data.state
+
       animStop(self)
-      this.blend(self, nil, 0, nil, true)
-    elseif blending[self] then
-      animBlend(self, animData[self].blend)
-      blending[self] = nil
-    else
-      animRestart(self)
+      local time = data.blendTimeIn * state.callbackState.progress
+      this.blend(self, time, animGetBlend(self), nil, true)
+      return self
     end
 
-    return self
+    this.stopBlend(self, false)
+    return animRestart(self)
   end
 
 
@@ -1454,17 +1484,18 @@ local s, this = pcall(function()
   end
 
   function animationMethods:setBlendCurve(curve)
+    local curve_isstr = type(curve) == "string"
+
     if this.safe then
       assert(chk.badarg(1, "setBlendCurve", self, "Animation"))
-      if type(curve) ~= "string" then
+      if not curve_isstr then
         assert(chk.badarg(2, "setBlendCurve", curve, "function", true))
       end
     end
 
-    if type(curve) == "string" then
-      local str = curve
-      curve = easingCurve[str]
-      if not curve then error("bad argument #2 of 'setBlendCurve' ('" .. str .. "' is not a valid curve)") end
+    if curve_isstr then
+      curve = easingCurve[curve]
+        or error("bad argument #2 of 'setBlendCurve' ('" .. curve .. "' is not a valid curve)", 2)
     end
     animData[self].curve = curve
     return self
@@ -1485,7 +1516,7 @@ local s, this = pcall(function()
 
   function animationMethods:setLength(len)
     if len == nil then len = 0 end
-    if len == anim:getLength() then return animLength(self, len) end
+    if len == self:getLength() then return animLength(self, len) end
     if this.safe then
       assert(chk.badarg(1, "setLength", self, "Animation"))
       assert(chk.badarg(2, "setLength", len, "number"))
@@ -1620,31 +1651,32 @@ else -- This is *all* error handling.
 
   local check = 0
   if FIG[1] then
-    local check = cmp(FIG[1])
+    check = cmp(FIG[1])
     if check == -1 then
       extra_reason = ("\n§7§oYour Figura version (%s) is below the recommended minimum of %s§r"):format(CLIENT_VERSION, FIG[1])
     elseif not check then
-      check = -1
-      extra_reason = ("\n§7§oYour Figura version (%s) is not valid!§r"):format(CLIENT_VERSION)
+      check = nil
     end
   end
-  if check >= 0 and FIG[2] then
-    local check = cmp(FIG[2])
-    if check == -1 then
+  if check and FIG[2] then
+    check = cmp(FIG[2])
+    if check == 1 then
       extra_reason = ("\n§7§oYour Figura version (%s) is above the recommended maximum of %s§r"):format(CLIENT_VERSION, FIG[2])
     elseif not check then
-      extra_reason = ("\n§7§oYour Figura version (%s) is not valid!§r"):format(CLIENT_VERSION)
+      check = nil
     end
   end
+
+  if not check then extra_reason = ("\n§7§oYour Figura version (%s) is not valid!§r"):format(CLIENT_VERSION) end
 
   error(
     (
       "'%s' failed to load\z
-       \n§7INFO: %s v%s | %s§r%s\z
+       \n§7INFO: %s v%s | %s§c%s\z
        \ncaused by:\z
        \n  §4%s\z
-       \n  §7stack traceback:\z
-       \n%s§r"
+       \n  stack traceback:\z
+       \n%s§c"
     ):format(
       ID,
       ID, VER, CLIENT_VERSION, extra_reason,
@@ -1676,6 +1708,8 @@ end
 ---@field length number|false
 ---The id for this animation's blend trigger
 ---@field triggerId integer
+---The name of the model this animation belongs to.
+---@field model string
 ---The original instruction keyframe at the start of the animation.
 ---@field startFunc? function
 ---The original instruction keyframe at the end of the animation.
