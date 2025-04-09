@@ -290,9 +290,8 @@ local s, this = pcall(function()
     local this_path = tostring(makeSane):match("^function: (.-):%d+%-%d+$")
     local other_path = tostring(ext_Animation.setBlendTime or ext_Animation.blendTime):match("^function: (.-):%d+%-%d+$")
     error(
-      ("Conflict found!\n[%s]\nconflicts with\n[%s]\nRemove one of the above scripts to fix this conflict.")
-        :format(this_path, other_path),
-      2
+      ("Conflict found!\n§7[§e%s.lua§7]§4 conflicts with §7[§e%s.lua§7]§4\nRemove one of the above scripts to fix this conflict.")
+        :format(this_path, other_path)
     )
   end
 
@@ -1320,11 +1319,11 @@ local s, this = pcall(function()
     local data = animData[self]
     if time == 0 then
       ---@diagnostic disable-next-line: redundant-parameter
-      data.startFunc = load(code, ("animations.%s.%s"):format(data.model, nbt.name))
+      data.startFunc = load(code, ("animations.%s.%s"):format(data.model, self.name))
       data.startSource = code
     elseif time == data.length then
       ---@diagnostic disable-next-line: redundant-parameter
-      data.endFunc = load(code, ("animations.%s.%s"):format(data.model, nbt.name))
+      data.endFunc = load(code, ("animations.%s.%s"):format(data.model, self.name))
       data.endSource = code
     else
       return animNewCode(self, time, code)
@@ -1642,7 +1641,9 @@ else -- This is *all* error handling.
       end
     elseif line:match("in function 'pcall'") then
       -- If the level *is* a Java level and it contains the pcall, remove both it and the level above.
-      stack_lines[#stack_lines] = stack_lines[#stack_lines]:gsub("in function %b<>", "in protected chunk")
+      if #stack_lines > 0 then
+        stack_lines[#stack_lines] = stack_lines[#stack_lines]:gsub("in function %b<>", "in protected chunk")
+      end
       skip_next = true
     end
   end
