@@ -8,6 +8,12 @@ To install this library:
 * Open the `.zip` file it gives you and open the `script` folder
 * Pick the version of this library you want to use, open it, and put the `GSAnimBlend.lua` file in your avatar.
 
+> [!NOTE]  
+> The **Lite** and **Tiny** versions of GSAnimBlend are *not* actively being worked on.  
+> They may not work as intended and may have issues that will not be resolved at the moment.
+>
+> An update/replacement is planned for a later date.
+
 &nbsp;
 ## Simple Usage
 To use the basic features of this library, simply require it.

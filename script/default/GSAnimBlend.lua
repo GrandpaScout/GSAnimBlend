@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.1.0
+---@version v2.1.1
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.1.0"
+local VER = "2.1.1"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -357,7 +357,7 @@ local s, this = pcall(function()
   ---@param from? number
   ---@param to? number
   ---@param starting? boolean
-  ---@return Lib.GS.AnimBlend.BlendState
+  ---@return Lib.GS.AnimBlend.BlendState?
   function this.blend(anim, time, from, to, starting)
     if this.safe then
       assert(chk.badarg(1, "blend", anim, "Animation"))
@@ -372,6 +372,15 @@ local s, this = pcall(function()
 
     if starting == nil then
       starting = (from or blendSane) < (to or blendSane)
+    end
+
+    if not player:isLoaded() then
+      if starting then
+        animPlay(anim)
+      else
+        animStop(stop)
+      end
+      return nil
     end
 
     data.state = {
@@ -1232,6 +1241,28 @@ local s, this = pcall(function()
 
   events.TICK:register(function()
     ticker = ticker + 1
+
+    -- Blends stop updating when the player is unloaded. Force blends to end early if this happens.
+    if not player:isLoaded() then
+      for anim in pairs(blending) do
+        local data = animData[anim]
+        local state = data.state
+
+        -- Paused blends don't do anything anyways so this isn't an issue.
+        if not state.paused then
+          cbs.time = cbs.max
+          cbs.rawProgress = 1
+          cbs.progress = state.curve(1)
+          cbs.done = true
+
+          -- Do final callback.
+          state.callback(cbs, animData[anim])
+          blending[anim] = nil
+          animPlaying(cbs.anim, state.starting)
+          animBlend(cbs.anim, data.blend)
+        end
+      end
+    end
   end, "GSAnimBlend:Tick_TimeTicker")
 
   events.RENDER:register(function(delta, ctx)
