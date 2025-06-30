@@ -115,12 +115,10 @@ local s, this = pcall(function()
 
   -- Create private space for blending trigger.
   -- This is done non-destructively so other scripts may do this as well.
-  if not getmetatable(_ENV) then setmetatable(_ENV, {}) end
+  local _ENVMT = getmetatable(_ENV) or setmetatable(_ENV, {})
 
 
   -----======================================= VARIABLES ========================================-----
-
-  local _ENVMT = getmetatable(_ENV)
 
   ---Contains the data required to make animation blending for each animation.
   ---@type {[Animation]: Lib.GS.AnimBlend.AnimData}
@@ -236,6 +234,8 @@ local s, this = pcall(function()
         blendSane = makeSane(blend, 0),
         length = lenSane,
         triggerId = i,
+        callbacks = {},
+        callbacksCache = {priority_0 = 1},
         model = nbt.mdl,
         startFunc = start_func,
         startSource = start_src,
@@ -383,6 +383,11 @@ local s, this = pcall(function()
       return nil
     end
 
+    if callbacks_cache.use_default then
+      callbacks_cache[callbacks_cache.priority_0] = this.defaultCallback
+    end
+
+
     data.state = {
       time = 0,
       max = time or false,
@@ -390,7 +395,7 @@ local s, this = pcall(function()
       from = from or false,
       to = to or false,
 
-      callback = data.callback or this.defaultCallback,
+      callbacks = callbacks_cache,
       curve = data.curve or this.defaultCurve,
 
       paused = false,
@@ -448,7 +453,7 @@ local s, this = pcall(function()
       cbs.progress = 1
       cbs.time = cbs.max
       cbs.done = true
-      state.callback(cbs, data)
+      for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
       blending[anim] = nil
       animBlend(anim, data.blend)
 
@@ -463,16 +468,15 @@ local s, this = pcall(function()
 
   -----==================================== PRESET CALLBACKS ====================================-----
 
-  ---Contains blending callback generators.
+  ---Contains blending callbacks and callback generators.
   ---
-  ---These are *not* callbacks themselves. They are meant to be called to generate a callback which
-  ---can *then* be used.
+  ---Callback generators are *not* callbacks themselves. They are meant to be called to generate a callback which can
+  ---*then* be used.
   local callbackFunction = {}
 
   ---Contains custom blending curves.
   ---
-  ---These callbacks change the curve used when blending. These cannot be used to modify custom or
-  ---generated callbacks (yet).
+  ---These callbacks change the easing curve used when blending.
   local easingCurve = {}
 
 
@@ -656,7 +660,7 @@ local s, this = pcall(function()
   ---
   ---An example of a valid timeline:
   ---```lua
-  ---...timeline({
+  ---...genTimeline({
   ---  {time = 0, min = 0, max = 1, curve = "easeInSine"},
   ---  {time = 0.25, min = 1, max = 0.5, curve = "easeOutCubic"},
   ---  {time = 0.8, min = 0.5, max = 1, curve = "easeInCubic"}
@@ -693,10 +697,16 @@ local s, this = pcall(function()
 
         assert(chk.badarg("1[" .. i .. ']["callback"]', "genTimeline", kf.callback, "function", true))
         if type(kf.curve) ~= "string" then
-          assert(chk.badarg("1[" .. i .. ']["curve"]', "genTimeline", kf.callback, "function", true))
+          assert(chk.badarg("1[" .. i .. ']["curve"]', "genTimeline", kf.curve, "function", true))
         elseif not easingCurve[kf.curve] then
           error("bad argument 1[" .. i .. "][\"curve\"] of 'genTimeline' ('" .. kf.curve .. "' is not a valid curve)")
         end
+      end
+    end
+
+    for _, kf in ipairs(tl) do
+      if type(kf.curve) == "string" then
+        kf.curve = easingCurve[kf.curve]
       end
     end
 
@@ -1250,13 +1260,14 @@ local s, this = pcall(function()
 
         -- Paused blends don't do anything anyways so this isn't an issue.
         if not state.paused then
+          local cbs = state.callbackState
           cbs.time = cbs.max
           cbs.rawProgress = 1
           cbs.progress = state.curve(1)
           cbs.done = true
 
           -- Do final callback.
-          state.callback(cbs, animData[anim])
+          for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
           blending[anim] = nil
           animPlaying(cbs.anim, state.starting)
           animBlend(cbs.anim, data.blend)
@@ -1298,7 +1309,7 @@ local s, this = pcall(function()
             cbs.done = true
 
             -- Do final callback.
-            state.callback(cbs, animData[anim])
+            for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
             blending[anim] = nil
             animPlaying(cbs.anim, state.starting)
             animBlend(cbs.anim, data.blend)
@@ -1306,7 +1317,7 @@ local s, this = pcall(function()
             cbs.time = state.time
             cbs.rawProgress = cbs.time / cbs.max
             cbs.progress = state.curve(cbs.rawProgress)
-            state.callback(cbs, animData[anim])
+            for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
           end
         end
       end
@@ -1324,21 +1335,23 @@ local s, this = pcall(function()
 
   function animationGetters:blendCallback()
     if this.safe then assert(chk.badarg(1, "__index", self, "Animation")) end
-    return animData[self].callback
+    return animData[self].callbacks[0]
   end
   function animationSetters:blendCallback(value)
     if this.safe then
       assert(chk.badarg(1, "__newindex", self, "Animation"))
-      if type(value) ~= "string" then
-        assert(chk.badarg(3, "__newindex", value, "function", true))
-      end
+      assert(chk.badarg(3, "__newindex", value, "function", true))
     end
 
-    if type(func) == "string" then
-      value = easingCurve[value]
-      if not value then error("bad argument #3 of '__newindex' ('" .. func .. "' is not a valid curve)") end
-    end
-    animData[self].callback = value
+    local data = animData[self]
+    data.callbacks[0] = value
+
+    local callbacks_cache = {}
+    for k, v in pairs(data.callbacksCache) do callbacks_cache[k] = v end
+    callbacks_cache[callbacks_cache.priority_0] = value
+    callbacks_cache.use_default = value == nil
+    data.callbacksCache = callbacks_cache
+    return self
   end
 
 
@@ -1456,6 +1469,14 @@ local s, this = pcall(function()
     return data.blendTimeIn, data.blendTimeOut
   end
 
+  function animationMethods:getBlendCallback(priority)
+    if this.safe then
+      assert(chk.badarg(1, "getBlendCallback", self, "Animation"))
+      assert(chk.badnum(2, "getBlendCallback", priority, true))
+    end
+    return animData[self].callbacks[priority or 0]
+  end
+
   function animationMethods:isBlending()
     if this.safe then assert(chk.badarg(1, "isBlending", self, "Animation")) end
     return not not blending[self]
@@ -1503,13 +1524,51 @@ local s, this = pcall(function()
     return self
   end
 
-  function animationMethods:setOnBlend(func)
+  function animationMethods:setOnBlend(func, priority)
     if this.safe then
       assert(chk.badarg(1, "setOnBlend", self, "Animation"))
       assert(chk.badarg(2, "setOnBlend", func, "function", true))
+      assert(chk.badarg(3, "setOnBlend", priority, "number", true))
     end
 
-    animData[self].callback = func
+    local data = animData[self]
+    priority = priority or 0
+
+    local old = data.callbacks[priority or 0]
+    if func == old then return self end
+
+    if priority == 0 then
+      data.callbacks[0] = value
+
+      local callbacks_cache = {}
+      for k, v in pairs(data.callbacksCache) do callbacks_cache[k] = v end
+      callbacks_cache[callbacks_cache.priority_0] = value
+      callbacks_cache.use_default = value == nil
+      data.callbacksCache = callbacks_cache
+      return self
+    end
+
+    local callbacks = data.callbacks
+    callbacks[priority] = func
+
+    local callbacks_cache = {}
+    local use_default = true
+    for i in pairs(callbacks) do
+      if i == 0 then use_default = false end
+      callbacks_cache[#callbacks_cache+1] = i
+    end
+
+    if use_default then callbacks_cache[#callbacks_cache+1] = 0 end
+    table.sort(callbacks_cache)
+
+    for i, v in ipairs(callbacks_cache) do
+      if v == 0 then callbacks_cache.priority_0 = i end
+      cachecallbacks_cache[i] = callbacks[v]
+    end
+
+    callbacks_cache.use_default = use_default
+    data.callbacksCache = callbacks_cache
+
     return self
   end
 
@@ -1750,9 +1809,11 @@ end
 ---@field startSource? string
 ---The original string source of the instruction keyframe at the end of the animation.
 ---@field endSource? string
----The callback function this animation will call every frame while it is blending and one final
+---The callback functions this animation will call every frame while it is blending and one final
 ---time when blending finishes.
----@field callback? Lib.GS.AnimBlend.blendCallback
+---@field callbacks {[integer]: Lib.GS.AnimBlend.blendCallback}
+---The cached order of this animation's callbacks. Don't touch this.
+---@field callbacksCache {[integer]: Lib.GS.AnimBlend.blendCallback, priority_0: integer, use_default: boolean}
 ---The curve that the blending progress is modified with.
 ---@field curve? Lib.GS.AnimBlend.blendCurve
 ---The active blend state.
@@ -1767,8 +1828,8 @@ end
 ---@field from number|false
 ---The ending blend weight.
 ---@field to number|false
----The callback to call each blending frame.
----@field callback Lib.GS.AnimBlend.blendCallback
+---The callbacks to call each blending frame.
+---@field callbacks {[integer]: Lib.GS.AnimBlend.blendCallback, priority_0: integer}
 ---The curve that the blending progress is modified with.
 ---@field curve? Lib.GS.AnimBlend.blendCurve
 ---The state proxy used in the blend callback function.
@@ -1928,11 +1989,11 @@ end
 
 ---@class Animation
 ---#### [GS AnimBlend Library]
----The callback that should be called every frame while the animation is blending.
+---The callback with priority 0 that should be called every frame while the animation is blending.
 ---
 ---This allows adding custom behavior to the blending feature.
 ---
----If this is `nil`, it will default to the library's basic callback.
+---If this is `nil`, it will default to the library's base callback.
 ---@field blendCallback? Lib.GS.AnimBlend.blendCallback
 local Animation
 
@@ -1980,6 +2041,14 @@ function Animation:stop(instant) end
 function Animation:getBlendTime() end
 
 ---#### [GS AnimBlend Library]
+---Gets the blending callback at the given priority in this animation.
+---
+---If `priority` is `nil`, it will default to `0`.
+---@param priority? integer
+---@return Lib.GS.AnimBlend.blendCallback?
+function Animation:getBlendCallback(priority) end
+
+---#### [GS AnimBlend Library]
 ---Gets if this animation is currently blending.
 ---@return boolean
 function Animation:isBlending() end
@@ -2005,12 +2074,16 @@ function Animation:setBlendTime(time) end
 function Animation:setBlendTime(time_in, time_out) end
 
 ---#### [GS AnimBlend Library]
----Sets the blending callback of this animation.
+---Sets a blending callback at the given priority in this animation.  
+---Higher priorities run later. Only one callback may have a given priority in an animation.
+---
+---If `priority` is `nil`, it will default to `0`.
 ---@generic self
 ---@param self self
 ---@param func? Lib.GS.AnimBlend.blendCallback
+---@param priority? integer
 ---@return self
-function Animation:setOnBlend(func) end
+function Animation:setOnBlend(func, priority) end
 
 ---#### [GS AnimBlend Library]
 ---Sets the easing curve of this animation.
@@ -2053,12 +2126,16 @@ function Animation:blendTime(time) end
 function Animation:blendTime(time_in, time_out) end
 
 ---#### [GS AnimBlend Library]
----Sets the blending callback of this animation.
+---Sets a blending callback at the given priority in this animation.  
+---Higher priorities run later. Only one callback may have a given priority in an animation.
+---
+---If `priority` is `nil`, it will default to `0`.
 ---@generic self
 ---@param self self
 ---@param func? Lib.GS.AnimBlend.blendCallback
+---@param priority? integer
 ---@return self
-function Animation:onBlend(func) end
+function Animation:onBlend(func, priority) end
 
 ---#### [GS AnimBlend Library]
 ---Sets the easing curve of this animation.

@@ -86,6 +86,12 @@ local function base(state, data)
 end
 ```
 
+Multiple blending callbacks can be assigned to a single animation by giving them a different priority in the
+`:setOnBlend()` method. Callbacks with higher priorities are called later to allow them to overwrite callbacks with
+lower priorities.  
+Priority 0 is used by the default callback provided by GSAnimBlend, if a custom callback uses priority 0 it will run
+instead of the default callback.
+
 Blending callbacks need access to the default Figura implementations of Animation methods to work properly, which
 GSAnimBlend provides at `GSBlend.oldF`.
 
@@ -163,7 +169,9 @@ local function flame(state, data)
   animBlend(state.anim, math.lerp(state.from, state.to, state.progress))
 end
 
-animations.MyModel.MyAnimation:onBlend(flame)
+-- This is given priority 0 so it replaces the default blending behavior.
+-- The default callback priority is 0, so it can be omitted in this call.
+animations.MyModel.MyAnimation:onBlend(flame, 0)
 ```
 
 &nbsp;
