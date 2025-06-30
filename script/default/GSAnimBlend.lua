@@ -115,10 +115,13 @@ local s, this = pcall(function()
 
   -- Create private space for blending trigger.
   -- This is done non-destructively so other scripts may do this as well.
-  local _ENVMT = getmetatable(_ENV) or setmetatable(_ENV, {})
+  if not getmetatable(_ENV) then setmetatable(_ENV, {}) end
 
 
   -----======================================= VARIABLES ========================================-----
+
+  local _ENVMT = getmetatable(_ENV)
+
 
   ---Contains the data required to make animation blending for each animation.
   ---@type {[Animation]: Lib.GS.AnimBlend.AnimData}
