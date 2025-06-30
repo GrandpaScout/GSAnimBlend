@@ -386,6 +386,7 @@ local s, this = pcall(function()
       return nil
     end
 
+    local callbacks_cache = data.callbacksCache
     if callbacks_cache.use_default then
       callbacks_cache[callbacks_cache.priority_0] = this.defaultCallback
     end
