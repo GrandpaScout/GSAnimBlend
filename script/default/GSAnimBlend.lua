@@ -219,11 +219,9 @@ local s, this = pcall(function()
         for _, code in ipairs(nbt.code) do
           if code.time == 0 then
             start_src = code.src
-            ---@diagnostic disable-next-line: redundant-parameter
             start_func = load(start_src, ("animations.%s.%s"):format(nbt.mdl, nbt.name))
           elseif code.time == len then
             end_src = code.src
-            ---@diagnostic disable-next-line: redundant-parameter
             end_func = load(end_src, ("animations.%s.%s"):format(nbt.mdl, nbt.name))
           end
           if start_func and (len == 0 or end_func) then break end
@@ -381,7 +379,7 @@ local s, this = pcall(function()
       if starting then
         animPlay(anim)
       else
-        animStop(stop)
+        animStop(anim)
       end
       return nil
     end
@@ -432,7 +430,7 @@ local s, this = pcall(function()
     end
     animPause(anim)
 
-    return blendState
+    return data.state
   end
 
   ---A helper function that immediately stops a running blend on an animation.  
@@ -594,7 +592,7 @@ local s, this = pcall(function()
   function callbackFunction.genBlendOut(anims)
     -- Because some dumbass won't read the instructions...
     ---@diagnostic disable-next-line: undefined-field
-    if anim.done ~= nil then
+    if anims.done ~= nil then
       error("attempt to use generator 'genBlendOut' as a blend callback.", 2)
     end
 
@@ -1542,12 +1540,12 @@ local s, this = pcall(function()
     if func == old then return self end
 
     if priority == 0 then
-      data.callbacks[0] = value
+      data.callbacks[0] = func
 
       local callbacks_cache = {}
       for k, v in pairs(data.callbacksCache) do callbacks_cache[k] = v end
-      callbacks_cache[callbacks_cache.priority_0] = value
-      callbacks_cache.use_default = value == nil
+      callbacks_cache[callbacks_cache.priority_0] = func
+      callbacks_cache.use_default = func == nil
       data.callbacksCache = callbacks_cache
       return self
     end
@@ -1567,7 +1565,7 @@ local s, this = pcall(function()
 
     for i, v in ipairs(callbacks_cache) do
       if v == 0 then callbacks_cache.priority_0 = i end
-      cachecallbacks_cache[i] = callbacks[v]
+      callbacks_cache[i] = callbacks[v]
     end
 
     callbacks_cache.use_default = use_default
