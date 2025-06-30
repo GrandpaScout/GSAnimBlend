@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.1.1
+---@version v2.2.0
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.1.1"
+local VER = "2.2.0"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -236,7 +236,7 @@ local s, this = pcall(function()
         length = lenSane,
         triggerId = i,
         callbacks = {},
-        callbacksCache = {priority_0 = 1},
+        callbacksCache = {priority_0 = 1, use_default = true},
         model = nbt.mdl,
         startFunc = start_func,
         startSource = start_src,
