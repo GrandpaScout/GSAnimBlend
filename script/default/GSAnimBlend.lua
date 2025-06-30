@@ -52,7 +52,8 @@ local s, this = pcall(function()
   local pairs = pairs
   local rawset = rawset
   local tostring = tostring
-  -- Localize Lua math
+  -- Localize Lua libraries
+  local math = math
   local m_abs = math.abs
   local m_cos = math.cos
   local m_lerp = math.lerp
@@ -64,6 +65,7 @@ local s, this = pcall(function()
   local m_1s2pi = m_pi * 0.5
   local m_2s3pi = m_pi / 1.5
   local m_4s9pi = m_pi / 2.25
+  local t_remove = table.remove
   -- Localize Figura globals
   local animations = animations
   local figuraMetatables = figuraMetatables
@@ -71,7 +73,6 @@ local s, this = pcall(function()
   local events = events
   -- Localize current environment
   local _ENV = _ENV --[[@as _G]]
-  local FUTURE = cmp("0.1.4") == 1
 
   ---@diagnostic disable: duplicate-set-field, duplicate-doc-field
 
@@ -1680,36 +1681,22 @@ local s, this = pcall(function()
   if animationapi_mt then
     local apiMethods = {}
 
-    if FUTURE then
-      function apiMethods:getPlaying(hold, ignore_blending)
-        if this.safe then assert(chk.badarg(1, "getPlaying", self, "AnimationAPI")) end
-        if ignore_blending then return animapiGetPlaying(animations, hold) end
-        local anims = {}
-        ---@diagnostic disable-next-line: redundant-parameter
-        for _, anim in ipairs(animations:getAnimations(hold)) do
-          if anim:isPlaying() then anims[#anims+1] = anim end
-        end
+    function apiMethods:getPlaying(hold, ignore_blending)
+      if this.safe then assert(chk.badarg(1, "getPlaying", self, "AnimationAPI")) end
+      if ignore_blending then return animapiGetPlaying(self, hold) end
 
-        return anims
+      local anims = animapiGetPlaying(self, hold)
+      for i = #anims, 1, -1 do
+        if not anims[i]:isBlending() then t_remove(anims, i) end
       end
-    else
-      function apiMethods:getPlaying(ignore_blending)
-        if this.safe then assert(chk.badarg(1, "getPlaying", self, "AnimationAPI")) end
-        if ignore_blending then return animapiGetPlaying(animations) end
-        local anims = {}
-        for _, anim in ipairs(animations:getAnimations()) do
-          if anim:isPlaying() then anims[#anims+1] = anim end
-        end
 
-        return anims
-      end
+      return anims
     end
 
     function animationapi_mt:__index(key)
       return apiMethods[key] or _animationapiIndex(self, key)
     end
   end
-
 
   return setmetatable(this, thismt)
 end)
@@ -2167,17 +2154,9 @@ local AnimationAPI
 
 ---===== GETTERS =====---
 
----#### [GS AnimBlend Library] (0.1.4-)
----Gets an array of every playing animation.
----
----Set `ignore_blending` to ignore animations that are currently blending.
----@param ignore_blending? boolean
----@return Animation[]
-function AnimationAPI:getPlaying(ignore_blending) end
-
 ---#### [GS AnimBlend Library] (0.1.5+)
 ---Gets an array of every playing animation.  
----If `hold` is set, HOLDING animations are included.
+---**`(0.1.5+ only)`** If `hold` is set, HOLDING animations are included.
 ---
 ---Set `ignore_blending` to ignore animations that are currently blending.
 ---@param hold? boolean
