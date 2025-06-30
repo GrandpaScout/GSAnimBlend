@@ -1680,14 +1680,16 @@ local s, this = pcall(function()
 
   if animationapi_mt then
     local apiMethods = {}
+    local PAST = cmp("0.1.4") ~= 1
 
     function apiMethods:getPlaying(hold, ignore_blending)
       if this.safe then assert(chk.badarg(1, "getPlaying", self, "AnimationAPI")) end
       if ignore_blending then return animapiGetPlaying(self, hold) end
+      if PAST then hold = false end
 
-      local anims = animapiGetPlaying(self, hold)
-      for i = #anims, 1, -1 do
-        if not anims[i]:isBlending() then t_remove(anims, i) end
+      local anims = {}
+      for _, anim in ipairs(self:getAnimations()) do
+        if anim:isPlaying() or (hold and anim:isHolding()) then anims[#anims+1] = anim end
       end
 
       return anims
