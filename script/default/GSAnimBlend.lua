@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.2.1
+---@version v2.2.2
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.2.1"
+local VER = "2.2.2"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -536,10 +536,17 @@ local s, this = pcall(function()
     return function(state)
       if state.done then
         local id = "GSAnimBlend:BlendVanillaCleanup_" .. math.random(0, 0xFFFF)
-        events.POST_RENDER:register(function(_, ctx)
-          if not allowed_contexts[ctx] then return end
+        local events_render = events.RENDER
+        local events_postworldrender = events.POST_WORLD_RENDER
+
+        local function callback()
           for _, part in ipairs(partscopy) do part:offsetRot() end
-          events.POST_RENDER:remove(id)
+          events_render:remove(id)
+        end
+
+        events_postworldrender:register(function()
+          events_render:register(callback, id)
+          events_postworldrender:remove(id)
         end, id)
       else
         local pct = state.starting and 1 - state.progress or state.progress
