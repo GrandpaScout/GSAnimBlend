@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.2.2
+---@version v2.2.3
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.2.2"
+local VER = "2.2.3"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -307,6 +307,7 @@ local s, this = pcall(function()
   local animRestart = ext_Animation.restart
   local animBlend = ext_Animation.blend
   local animLength = ext_Animation.length
+  local animTime = ext_Animation.time
   local animGetPlayState = ext_Animation.getPlayState
   local animGetBlend = ext_Animation.getBlend
   local animGetTime = ext_Animation.getTime
@@ -424,9 +425,9 @@ local s, this = pcall(function()
     if starting then
       animPlay(anim)
       if anim:getSpeed() < 0 then
-        anim:setTime(anim:getLength() - anim:getOffset())
+        animTime(anim, anim:getLength() - anim:getOffset())
       else
-        anim:setTime(anim:getOffset())
+        animTime(anim, anim:getOffset())
       end
     end
     animPause(anim)
@@ -1649,6 +1650,16 @@ local s, this = pcall(function()
   function animationMethods:setPlaying(state, instant)
     if this.safe then assert(chk.badarg(1, "setPlaying", self, "Animation")) end
     return state and self:play(instant) or self:stop(instant)
+  end
+
+  function animationMethods:setTime(time)
+    if this.safe then
+      assert(chk.badarg(1, "setTime", self, "Animation"))
+      assert(chk.badarg(2, "setTime", time, "number"))
+    end
+
+    if blending[self] then animData[self].state.delay = 0 end
+    return animTime(self, time)
   end
 
 
