@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.2.3
+---@version v2.2.4
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.2.3"
+local VER = "2.2.4"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -230,6 +230,7 @@ local s, this = pcall(function()
       end
 
       animData[anim] = {
+        ["EZAnims$hasBlendTime"] = false,
         blendTimeIn = 0,
         blendTimeOut = 0,
         blend = blend,
@@ -1530,8 +1531,10 @@ local s, this = pcall(function()
       assert(chk.badnum(3, "setBlendTime", time_out, true))
     end
 
-    animData[self].blendTimeIn = m_max(time_in, 0)
-    animData[self].blendTimeOut = m_max(time_out or time_in, 0)
+    local data = animData[self]
+    data["EZAnims$hasBlendTime"] = true
+    data.blendTimeIn = m_max(time_in, 0)
+    data.blendTimeOut = m_max(time_out or time_in, 0)
     return self
   end
 
