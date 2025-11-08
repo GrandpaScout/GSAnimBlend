@@ -65,7 +65,6 @@ local s, this = pcall(function()
   local m_1s2pi = m_pi * 0.5
   local m_2s3pi = m_pi / 1.5
   local m_4s9pi = m_pi / 2.25
-  local t_remove = table.remove
   -- Localize Figura globals
   local animations = animations
   local figuraMetatables = figuraMetatables
@@ -198,21 +197,80 @@ local s, this = pcall(function()
 
   -----=================================== PREPARE ANIMATIONS ===================================-----
 
+  ---Creates an animation data table for any user-created object.  
+  ---It is your responsibility to keep the object updated if necessary.
+  ---
+  ---If `proxy` is set, that table will be used to store the data.  
+  ---* It will not have its metatable modified.
+  ---* Its `__index` method (if it exists) will be triggered for each key that has a default value to see.
+  ---* Its `__newindex` method (if it exists) will be triggered for each missing key that gets a default value.
+  ---* It will be returned by this function.
+  ---
+  ---Do not provide a proxy if you do not intend to actually use it. If no proxy is provided, a more efficient method of
+  ---generating the data will be used.
+  ---@param obj table | userdata
+  ---@param proxy? table
+  ---@return Lib.GS.AnimBlend.AnimData
+  function this.newAnimData(obj, proxy)
+    if proxy then
+      animData[obj] = proxy
+      if proxy["EZAnims$hasBlendTime"] == nil then proxy["EZAnims$hasBlendTime"] = false end
+      if proxy.blendTimeIn == nil then proxy.blendTimeIn = 0 end
+      if proxy.blendTimeOut == nil then proxy.blendTimeOut = 0 end
+      if proxy.blend == nil then proxy.blend = obj.getBlend and obj:getBlend() or 0 end
+      if proxy.blendSane == nil then proxy.blendSane = makeSane(proxy.blend, 0) end
+      if proxy.length == nil then proxy.length = obj.getLength and makeSane(obj:getLength(), false) or 0 end
+      if proxy.triggerId == nil then proxy.triggerId = -1 end
+      if proxy.callbacks == nil then proxy.callbacks = {} end
+      if proxy.callbacksCache == nil then proxy.callbacksCache = {priority_0 = 1, use_default = true} end
+      if proxy.model == nil then proxy.model = "<UNKNOWN>" end
+      -- if proxy.startFunc == nil then proxy.startFunc = nil end
+      -- if proxy.startSource == nil then proxy.startSource = nil end
+      -- if proxy.endFunc == nil then proxy.endFunc = nil end
+      -- if proxy.endSource == nil then proxy.endSource = nil end
+      return proxy
+    end
+
+    local data = {
+      ["EZAnims$hasBlendTime"] = false,
+      blendTimeIn = 0,
+      blendTimeOut = 0,
+      triggerId = -1,
+      callbacks = {},
+      callbacksCache = {priority_0 = 1, use_default = true},
+      model = "<UNKNOWN>"
+    }
+
+    if type(obj) == "Animation" then
+      local blend = obj:getBlend()
+      data.blend = blend
+      data.blendSane = makeSane(blend, 0)
+      data.length = makeSane(obj:getLength(), false)
+    else
+      local blend = obj.getBlend and obj:getBlend()
+      data.blend = blend or 0
+      data.blendSane = blend and makeSane(blend, 0) or 0
+      data.length = obj.getLength and makeSane(obj:getLength(), false) or 0
+    end
+
+    animData[obj] = data
+    return data
+  end
+  local newAnimData = this.newAnimData
+
   local animPause
   local blendCommand = [[getmetatable(_ENV).GSLib_triggerBlend[%d](%s, ...)]]
 
   _ENVMT.GSLib_triggerBlend = {}
 
+  ---@type {mdl: string, name: string, code: {time: number, src: string}[]?}[]?
   local anim_nbt = avatar:getNBT().animations
   if anim_nbt then
     for i, nbt in ipairs(anim_nbt) do
-      ---@type Animation
       local anim = animations[nbt.mdl][nbt.name]
-      local blend = anim:getBlend()
       local len = anim:getLength()
-      local lenSane = makeSane(len, false)
 
-      ---@type function?, function?
+      ---@type fun(...: any)?, fun(...: any)?
       local start_func, end_func
       ---@type string?, string?
       local start_src, end_src
@@ -229,33 +287,24 @@ local s, this = pcall(function()
         end
       end
 
-      animData[anim] = {
-        ["EZAnims$hasBlendTime"] = false,
-        blendTimeIn = 0,
-        blendTimeOut = 0,
-        blend = blend,
-        blendSane = makeSane(blend, 0),
-        length = lenSane,
-        triggerId = i,
-        callbacks = {},
-        callbacksCache = {priority_0 = 1, use_default = true},
-        model = nbt.mdl,
-        startFunc = start_func,
-        startSource = start_src,
-        endFunc = end_func,
-        endSource = end_src
-      }
+      local data = newAnimData(anim)
+      data.triggerId = i
+      data.model = nbt.mdl
+      data.startFunc = start_func
+      data.startSource = start_src
+      data.endFunc = end_func
+      data.endSource = end_src
 
       _ENVMT.GSLib_triggerBlend[i] = function(at_start, ...)
         if
           anim:getLoop() == "ONCE"
-          and (animData[...].blendTimeOut > 0)
+          and (data.blendTimeOut > 0)
           and (at_start == nil or (anim:getSpeed() < 0) == at_start)
         then
           animPause(anim)
           anim:stop()
         end
-        local data = animData[anim]
+
         if at_start == false then
           if data.endFunc then data.endFunc(...) end
         elseif data.startFunc then
@@ -263,6 +312,7 @@ local s, this = pcall(function()
         end
       end
 
+      local lenSane = makeSane(len, false)
       if lenSane == 0 then
         anim:newCode(0, blendCommand:format(i, "nil"))
       else
