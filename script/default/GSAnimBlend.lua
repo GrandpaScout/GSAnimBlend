@@ -6,7 +6,7 @@
 -- │ └─┐ └─────┘└─────┘ ┌─┘ │ --
 -- └───┘                └───┘ --
 ---@module  "Animation Blending Library" <GSAnimBlend>
----@version v2.3.0
+---@version v2.4.0
 ---@see     GrandpaScout @ https://github.com/GrandpaScout
 -- Adds prewrite-like animation blending to the rewrite.
 -- Also includes the ability to modify how the blending works per-animation with blending callbacks.
@@ -19,7 +19,7 @@
 -- function, method, and field in this library.
 
 local ID = "GSAnimBlend"
-local VER = "2.3.0"
+local VER = "2.4.0"
 local FIG = {"0.1.0-rc.14", "0.1.5"}
 
 -- Safe version comparison --
@@ -397,6 +397,20 @@ local s, this = pcall(function()
 
   -----===================================== SET UP LIBRARY =====================================-----
 
+  ---Library-defined Animation method overrides will be disabled for any Animation in this set.
+  ---
+  ---Note: This only disables *overrides*. New methods defined by this library will not be disabled.
+  ---@type {[Animation]?: true}
+  local mt_bypass = {
+    check = function(self, obj) return self[obj] and self[obj] > 0 or false end,
+    push = function(self, obj) self[obj] = (self[obj] or 0) + 1 end,
+    pop = function(self, obj) self[obj] = self[obj] > 1 and (self[obj] - 1) or nil end,
+  }
+
+  local function isAnimationObject(obj)
+    if obj["GSAnimBlend$isAnimationObject"] ~= true or not animData[obj] then error() end
+  end
+
   ---Causes a blending event to happen and returns the blending state for that event.  
   ---If a blending event could not happen for some reason, nothing will be returned.
   ---
@@ -413,13 +427,16 @@ local s, this = pcall(function()
   ---@param starting? boolean
   ---@return Lib.GS.AnimBlend.BlendState?
   function this.blend(anim, time, from, to, starting)
+    local isanimobj = type(anim) ~= "Animation" and pcall(isAnimationObject, anim)
     if this.safe then
-      assert(chk.badarg(1, "blend", anim, "Animation"))
+      if not isanimobj then assert(chk.badarg(1, "blend", anim, "Animation")) end
       assert(chk.badarg(2, "blend", time, "number", true))
       assert(chk.badarg(3, "blend", from, "number", true))
       assert(chk.badarg(4, "blend", to, "number", true))
       if not from and not to then error("one of arguments #3 or #4 must be a number", 2) end
     end
+
+    mt_bypass:push(anim)
 
     local data = animData[anim]
     local blendSane = data.blendSane
@@ -429,11 +446,8 @@ local s, this = pcall(function()
     end
 
     if not player:isLoaded() then
-      if starting then
-        animPlay(anim)
-      else
-        animStop(anim)
-      end
+      anim:setPlaying(starting)
+      mt_bypass:pop(anim)
       return nil
     end
 
@@ -472,17 +486,18 @@ local s, this = pcall(function()
 
     blending[anim] = true
 
-    animBlend(anim, from or blendSane)
+    anim:setBlend(from or blendSane)
     if starting then
-      animPlay(anim)
+      anim:play()
       if anim:getSpeed() < 0 then
-        animTime(anim, anim:getLength() - anim:getOffset())
+        anim:setTime(anim:getLength() - anim:getOffset())
       else
-        animTime(anim, anim:getOffset())
+        anim:setTime(anim:getOffset())
       end
     end
-    animPause(anim)
+    anim:pause()
 
+    mt_bypass:pop(anim)
     return data.state
   end
 
@@ -497,11 +512,14 @@ local s, this = pcall(function()
   ---@param anim Animation
   ---@param starting? boolean
   function this.stopBlend(anim, starting)
-    if this.safe then
+    local isanimobj = type(anim) ~= "Animation" and pcall(isAnimationObject, anim)
+    if this.safe and not isanimobj then
       assert(chk.badarg(1, "stopBlend", anim, "Animation"))
     end
 
     if blending[anim] then
+      mt_bypass:push(anim)
+
       local data = animData[anim]
       local state = data.state
       local cbs = state.callbackState
@@ -510,13 +528,14 @@ local s, this = pcall(function()
       cbs.done = true
       for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
       blending[anim] = nil
-      animBlend(anim, data.blend)
+      anim:setBlend(data.blend)
 
       if starting ~= nil then
-        (starting and animPlay or animStop)(anim)
+        anim:setPlaying(starting)
       else
-        (state.starting and animPlay or animStop)(anim)
+        anim:setPlaying(state.starting)
       end
+      mt_bypass:pop(anim)
     end
   end
 
@@ -541,7 +560,7 @@ local s, this = pcall(function()
   ---Does the bare minimum of setting the blend weight of the animation to match the blend progress.
   ---@param state Lib.GS.AnimBlend.CallbackState
   function callbackFunction.base(state)
-    animBlend(state.anim, m_lerp(state.from, state.to, state.progress))
+    state.anim:setBlend(m_lerp(state.from, state.to, state.progress))
   end
 
   ---Given a list of parts, this will generate a blending callback that will blend between the vanilla
@@ -611,7 +630,7 @@ local s, this = pcall(function()
           for _, p in ipairs(v) do p:offsetRot(rot) end
         end
 
-        animBlend(state.anim, m_lerp(state.from, state.to, state.progress))
+        state.anim:setBlend(m_lerp(state.from, state.to, state.progress))
       end
     end
   end
@@ -641,7 +660,7 @@ local s, this = pcall(function()
           ready = false
           anim:play()
         end
-        animBlend(state.anim, m_lerp(state.from, state.to, state.progress))
+        state.anim:setBlend(m_lerp(state.from, state.to, state.progress))
       end
     end
   end
@@ -672,7 +691,7 @@ local s, this = pcall(function()
           ready = false
           for _, anim in ipairs(anims) do anim:stop() end
         end
-        animBlend(state.anim, m_lerp(state.from, state.to, state.progress))
+        state.anim:setBlend(m_lerp(state.from, state.to, state.progress))
       end
     end
   end
@@ -1322,6 +1341,7 @@ local s, this = pcall(function()
 
         -- Paused blends don't do anything anyways so this isn't an issue.
         if not state.paused then
+          mt_bypass:push(anim)
           local cbs = state.callbackState
           cbs.time = cbs.max
           cbs.rawProgress = 1
@@ -1331,8 +1351,9 @@ local s, this = pcall(function()
           -- Do final callback.
           for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
           blending[anim] = nil
-          animPlaying(cbs.anim, state.starting)
-          animBlend(cbs.anim, data.blend)
+          anim:setPlaying(state.starting)
+          anim:setBlend(data.blend)
+          mt_bypass:pop(anim)
         end
       end
     end
@@ -1363,8 +1384,9 @@ local s, this = pcall(function()
             cbs.to = state.to
           end
 
+          mt_bypass:push(anim)
           -- When a blend stops, update all info to signal it has stopped.
-          if (state.time >= cbs.max) or (animGetPlayState(anim) == "STOPPED") then
+          if (state.time >= cbs.max) or (anim:getPlayState() == "STOPPED") then
             cbs.time = cbs.max
             cbs.rawProgress = 1
             cbs.progress = state.curve(1)
@@ -1373,14 +1395,15 @@ local s, this = pcall(function()
             -- Do final callback.
             for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
             blending[anim] = nil
-            animPlaying(cbs.anim, state.starting)
-            animBlend(cbs.anim, data.blend)
+            anim:setPlaying(state.starting)
+            anim:setBlend(data.blend)
           else
             cbs.time = state.time
             cbs.rawProgress = cbs.time / cbs.max
             cbs.progress = state.curve(cbs.rawProgress)
             for _, cb in ipairs(state.callbacks) do cb(cbs, data) end
           end
+          mt_bypass:pop(anim)
         end
       end
     end
@@ -1729,6 +1752,11 @@ local s, this = pcall(function()
   ---===== METAMETHODS =====---
 
   function animation_mt:__index(key)
+    if mt_bypass:check(self) then
+      local value = _animationIndex(self, key)
+      if value ~= nil then return value end
+    end
+
     if animationGetters[key] then
       return animationGetters[key](self)
     elseif animationMethods[key] then
