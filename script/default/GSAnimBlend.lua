@@ -483,6 +483,7 @@ local s, this = pcall(function()
         done = false
       }
     }
+    data.state = state
 
     blending[anim] = true
 
